@@ -1,5 +1,4 @@
-gunicorn
+streamlit
 scikit-learn
-scikit-image 
-pandas
-flask
+scikit-image
+numpy
