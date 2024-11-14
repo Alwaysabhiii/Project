@@ -1,10 +1,48 @@
-import streamlit as st
+from flask import Flask, request, render_template, send_file
 import os
 from sklearn.decomposition import PCA
 from skimage import io, color
 from skimage.util import img_as_ubyte
 
-# Function to reduce the image using PCA
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'image' not in request.files:
+        return "No file uploaded", 400
+
+    image = request.files['image']
+    confidence = request.form.get('accuracy')
+
+    if image.filename == '':
+        return "No file selected", 400
+
+    # Save the uploaded image
+    if image:
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
+        image.save(image_path)
+
+        # Convert accuracy value to float and reduce the image
+        accuracy = float(confidence)
+        reduce_image(image_path, accuracy)
+
+        # Render the index page with the download option
+        return render_template('index.html', download_available=True)
+
+    return "Upload failed", 500
+
+@app.route('/download')
+def download():
+    file_path = 'Reduced_image.jpg'
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    return "File not found", 404
+
 def reduce_image(file_name, accuracy):
     # Load and convert image to grayscale
     image = io.imread(file_name)
@@ -20,42 +58,11 @@ def reduce_image(file_name, accuracy):
     # Normalize and save the compressed image
     compressed_image_normalized = (reconstructed_image - reconstructed_image.min()) / (reconstructed_image.max() - reconstructed_image.min())
     compressed_image_uint8 = img_as_ubyte(compressed_image_normalized)
-    output_path = 'Reduced_image.jpg'
-    io.imsave(output_path, compressed_image_uint8)
-    return output_path
+    io.imsave('Reduced_image.jpg', compressed_image_uint8)
+    print("Image has been successfully compressed")
 
-# Streamlit UI
-st.title("Image Compression using PCA")
-st.write("Upload an image and select the accuracy for compression.")
+if __name__ == '__main__':
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# File upload input
-uploaded_image = st.file_uploader("Choose an image file", type=["jpg", "jpeg", "png"])
-
-# Confidence/accuracy selection
-accuracy = st.radio(
-    "Select the compression accuracy:",
-    options=[0.8, 0.9, 0.95, 0.99],
-    index=1
-)
-
-if uploaded_image is not None:
-    # Save the uploaded image
-    image_path = os.path.join("uploads", uploaded_image.name)
-    with open(image_path, "wb") as f:
-        f.write(uploaded_image.getbuffer())
-
-    # Reduce the image using the selected accuracy
-    st.write("Processing the image...")
-    output_path = reduce_image(image_path, accuracy)
-
-    # Display the compressed image
-    st.image(output_path, caption="Compressed Image", use_column_width=True)
-
-    # Download link for the reduced image
-    with open(output_path, "rb") as file:
-        btn = st.download_button(
-            label="Download Compressed Image",
-            data=file,
-            file_name="Reduced_image.jpg",
-            mime="image/jpeg"
-        )
+    app.run(debug=True,host='0.0.0.0',port=5050)
