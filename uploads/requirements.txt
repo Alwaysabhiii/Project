@@ -2,4 +2,3 @@ scikit-learn
 scikit-image
 pandas
 flask
-gunicorn
